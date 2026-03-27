@@ -34,12 +34,8 @@ final class WorkspaceStore {
 
         load()
 
-        if states.isEmpty {
-            states = WorkspaceState.samples
-            selectedStateID = states.first?.id
-            save()
-        } else {
-            selectedStateID = states.first?.id
+        if let first = states.first {
+            selectedStateID = first.id
         }
 
         monitorObserver.onDisplaysChanged = { [weak self] in
@@ -167,38 +163,7 @@ final class WorkspaceStore {
 }
 
 extension WorkspaceState {
-    static let samples: [WorkspaceState] = [
-        WorkspaceState(
-            name: "Coding Mode",
-            icon: "chevron.left.forwardslash.chevron.right",
-            accentHex: "#5B8CFF",
-            launches: [
-                LaunchTarget(bundleIdentifier: "com.apple.Safari", appName: "Safari", url: "https://jira.atlassian.com"),
-                LaunchTarget(bundleIdentifier: "com.tinyspeck.slackmacgap", appName: "Slack"),
-                LaunchTarget(bundleIdentifier: "com.microsoft.VSCode", appName: "VS Code")
-            ],
-            closedBundleIdentifiers: ["com.spotify.client"],
-            windows: [],
-            displaySignature: .current(),
-            notes: "Two-monitor dev setup with comms and code."
-        ),
-        WorkspaceState(
-            name: "Weekend Mode",
-            icon: "sun.max",
-            accentHex: "#FF8A5B",
-            launches: [
-                LaunchTarget(bundleIdentifier: "com.apple.Music", appName: "Music"),
-                LaunchTarget(bundleIdentifier: "com.apple.MobileSMS", appName: "Messages")
-            ],
-            closedBundleIdentifiers: [
-                "com.tinyspeck.slackmacgap",
-                "com.docker.docker"
-            ],
-            windows: [],
-            displaySignature: .current(),
-            notes: "Shuts down work apps and opens personal basics."
-        )
-    ]
+    static let samples: [WorkspaceState] = []
 }
 
 private extension JSONEncoder {
