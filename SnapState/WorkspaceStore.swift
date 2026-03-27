@@ -7,6 +7,7 @@
 
 import AppKit
 import Observation
+import ServiceManagement
 
 @Observable
 final class WorkspaceStore {
@@ -19,6 +20,11 @@ final class WorkspaceStore {
     var lastMonitorEvent: Date?
     var statusMessage = "Ready to capture your workspace."
     var pendingAutoRestoreStateID: WorkspaceState.ID?
+    var launchAtLogin: Bool = false {
+        didSet {
+            setLaunchAtLogin(launchAtLogin)
+        }
+    }
 
     let permissionMonitor = PermissionMonitor()
     let snapshotService = WorkspaceSnapshotService()
@@ -38,8 +44,22 @@ final class WorkspaceStore {
             selectedStateID = first.id
         }
 
+        launchAtLogin = SMAppService.mainApp.status == .enabled
+
         monitorObserver.onDisplaysChanged = { [weak self] in
             self?.handleDisplayChange()
+        }
+    }
+
+    private func setLaunchAtLogin(_ enabled: Bool) {
+        do {
+            if enabled {
+                try SMAppService.mainApp.register()
+            } else {
+                try SMAppService.mainApp.unregister()
+            }
+        } catch {
+            captureError = "Failed to update login item: \(error.localizedDescription)"
         }
     }
 

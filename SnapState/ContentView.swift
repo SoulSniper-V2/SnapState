@@ -186,12 +186,21 @@ struct ContentView: View {
     @State private var editingName = ""
     @State private var editingIcon = ""
     @State private var editingAccent = ""
+    @State private var launchAtLogin = false
 
     var body: some View {
         HSplitView {
             // Sidebar
             VStack(spacing: 0) {
                 List(selection: $selectedState) {
+                    Section {
+                        Toggle("Launch at Login", isOn: $launchAtLogin)
+                            .toggleStyle(.switch)
+                            .onChange(of: launchAtLogin) { _, newValue in
+                                store.launchAtLogin = newValue
+                            }
+                    }
+                    
                     Section("Workspaces") {
                         ForEach(store.states) { state in
                             SidebarRow(state: state)
@@ -236,6 +245,9 @@ struct ContentView: View {
             }
         }
         .frame(minWidth: 600, minHeight: 400)
+        .onAppear {
+            launchAtLogin = store.launchAtLogin
+        }
         .onChange(of: store.states) { _, newStates in
             if selectedState == nil, let first = newStates.first {
                 selectedState = first
