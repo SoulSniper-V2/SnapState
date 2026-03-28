@@ -16,7 +16,6 @@ struct SnapStateApp: App {
         MenuBarExtra("SnapState", systemImage: "rectangle.3.group.bubble") {
             MenuBarContentView()
                 .environment(store)
-                .frame(width: 380)
         }
         .menuBarExtraStyle(.window)
 
@@ -24,6 +23,7 @@ struct SnapStateApp: App {
             ContentView()
                 .environment(store)
                 .frame(minWidth: 980, minHeight: 700)
+                .background(.background)
         }
         .windowResizability(.contentSize)
     }

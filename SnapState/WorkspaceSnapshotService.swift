@@ -32,8 +32,17 @@ struct WorkspaceSnapshotService {
             .filter { $0.activationPolicy == .regular }
             .filter { $0.bundleIdentifier != Bundle.main.bundleIdentifier }
 
+        // Check if Finder is the frontmost app
+        let frontmostApp = NSWorkspace.shared.frontmostApplication
+        let isFinderFrontmost = frontmostApp?.bundleIdentifier == "com.apple.finder"
+
         let launches = runningApps.compactMap { app -> LaunchTarget? in
             guard let bundleIdentifier = app.bundleIdentifier else { return nil }
+            
+            // Skip Finder unless it's the frontmost app
+            if bundleIdentifier == "com.apple.finder" && !isFinderFrontmost {
+                return nil
+            }
 
             return LaunchTarget(
                 bundleIdentifier: bundleIdentifier,
@@ -44,7 +53,7 @@ struct WorkspaceSnapshotService {
         }
         .sorted { $0.appName.localizedCaseInsensitiveCompare($1.appName) == .orderedAscending }
 
-        let windowSnapshots = captureWindows(for: runningApps)
+        let windowSnapshots = captureWindows(for: runningApps, isFinderFrontmost: isFinderFrontmost)
 
         guard launches.isEmpty == false || windowSnapshots.isEmpty == false else {
             throw WorkspaceSnapshotError.noLaunchTargets
@@ -61,7 +70,7 @@ struct WorkspaceSnapshotService {
         )
     }
 
-    private func captureWindows(for apps: [NSRunningApplication]) -> [WindowSnapshot] {
+    private func captureWindows(for apps: [NSRunningApplication], isFinderFrontmost: Bool = false) -> [WindowSnapshot] {
         let pairs: [(pid_t, (String, String))] = apps.compactMap { app in
             guard let bundleIdentifier = app.bundleIdentifier else { return nil }
             return (app.processIdentifier, (bundleIdentifier, app.localizedName ?? bundleIdentifier))
@@ -83,6 +92,11 @@ struct WorkspaceSnapshotService {
                 frame.width > 80,
                 frame.height > 60
             else {
+                return nil
+            }
+
+            // Skip Finder windows unless Finder is frontmost
+            if bundleIdentifier == "com.apple.finder" && !isFinderFrontmost {
                 return nil
             }
 
