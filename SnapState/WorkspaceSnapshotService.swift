@@ -68,11 +68,13 @@ struct WorkspaceSnapshotService {
         }
         let appLookup = Dictionary(uniqueKeysWithValues: pairs)
 
-        guard let infoList = CGWindowListCopyWindowInfo([.optionOnScreenOnly], kCGNullWindowID) as? [[String: Any]] else {
+        // Get window list with more details - .optionAll gets windows including offscreen ones
+        guard let infoList = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID) as? [[String: Any]] else {
             return []
         }
 
-        return infoList.enumerated().compactMap { index, info in
+        var order = 0
+        return infoList.compactMap { info -> WindowSnapshot? in
             guard
                 let pid = info[kCGWindowOwnerPID as String] as? pid_t,
                 let (bundleIdentifier, appName) = appLookup[pid],
@@ -86,15 +88,21 @@ struct WorkspaceSnapshotService {
 
             let title = (info[kCGWindowName as String] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
             let resolvedTitle = title?.isEmpty == false ? title! : appName
+            let layer = info[kCGWindowLayer as String] as? Int ?? 0
 
-            return WindowSnapshot(
+            // Skip utility windows (layer > 0 means floating/utility windows)
+            guard layer == 0 else { return nil }
+
+            let snapshot = WindowSnapshot(
                 bundleIdentifier: bundleIdentifier,
                 appName: appName,
                 title: resolvedTitle,
                 frame: frame,
                 displayID: DisplayMapper.displayID(containing: frame),
-                order: index
+                order: order
             )
+            order += 1
+            return snapshot
         }
     }
 }

@@ -122,6 +122,11 @@ final class WorkspaceStore {
     }
 
     func delete(_ state: WorkspaceState) {
+        // Close apps that were launched by this workspace
+        for launch in state.launches {
+            NSRunningApplication.runningApplications(withBundleIdentifier: launch.bundleIdentifier).forEach { $0.terminate() }
+        }
+        
         states.removeAll { $0.id == state.id }
         if selectedStateID == state.id {
             selectedStateID = states.first?.id

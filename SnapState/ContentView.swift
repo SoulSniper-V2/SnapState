@@ -207,8 +207,16 @@ struct ContentView: View {
                                 .tag(state)
                         }
                         .onDelete { indexSet in
-                            for index in indexSet {
-                                store.delete(store.states[index])
+                            // Collect IDs to delete before modifying the array
+                            let idsToDelete = indexSet.map { store.states[$0].id }
+                            for id in idsToDelete {
+                                if let state = store.states.first(where: { $0.id == id }) {
+                                    store.delete(state)
+                                    // Clear selection if deleting the selected state
+                                    if selectedState?.id == id {
+                                        selectedState = nil
+                                    }
+                                }
                             }
                         }
                     }
@@ -232,7 +240,9 @@ struct ContentView: View {
 
             // Detail
             if let state = selectedState {
-                DetailView(state: state, store: store)
+                DetailView(state: state, store: store, onDelete: {
+                    selectedState = nil
+                })
             } else {
                 VStack(spacing: 12) {
                     Image(systemName: "sidebar.left")
@@ -281,14 +291,17 @@ struct SidebarRow: View {
 struct DetailView: View {
     let state: WorkspaceState
     let store: WorkspaceStore
+    let onDelete: () -> Void
+    @Environment(\.dismiss) private var dismiss
 
     @State private var name: String = ""
     @State private var icon: String = ""
     @State private var accentHex: String = ""
+    @State private var showingDeleteConfirm = false
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 24) {
+            VStack(alignment: .leading, spacing: 20) {
                 // Header
                 HStack(spacing: 16) {
                     ZStack {
@@ -305,7 +318,7 @@ struct DetailView: View {
                             .font(.title2.bold())
                             .textFieldStyle(.plain)
 
-                        Text("Last updated \(state.updatedAt.formatted(date: .abbreviated, time: .shortened))")
+                        Text("Updated \(state.updatedAt.formatted(date: .abbreviated, time: .shortened))")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
@@ -319,63 +332,55 @@ struct DetailView: View {
                     .controlSize(.large)
                 }
 
-                Divider()
-
                 // Customize
-                GroupBox("Customize") {
-                    HStack(spacing: 16) {
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text("Icon")
-                                .font(.caption)
+                GroupBox("Appearance") {
+                    HStack(spacing: 20) {
+                        HStack(spacing: 8) {
+                            Image(systemName: "character.cursor.ibeam")
                                 .foregroundStyle(.secondary)
-                            TextField("rectangle.3.group", text: $icon)
-                                .textFieldStyle(.roundedBorder)
-                                .frame(width: 160)
+                            TextField("Icon", text: $icon)
+                                .textFieldStyle(.plain)
+                                .frame(width: 140)
                         }
 
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text("Accent Color")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                            HStack {
-                                TextField("#5B8CFF", text: $accentHex)
-                                    .textFieldStyle(.roundedBorder)
-                                    .frame(width: 100)
-                                Circle()
-                                    .fill(Color(hex: accentHex))
-                                    .frame(width: 20, height: 20)
-                            }
+                        HStack(spacing: 8) {
+                            Circle()
+                                .fill(Color(hex: accentHex))
+                                .frame(width: 16, height: 16)
+                            TextField("Color", text: $accentHex)
+                                .textFieldStyle(.plain)
+                                .frame(width: 80)
                         }
 
                         Spacer()
 
-                        Button("Update") {
+                        Button("Save") {
                             updateState()
                         }
                         .buttonStyle(.bordered)
                     }
-                    .padding(8)
+                    .padding(.vertical, 8)
                 }
 
-                // Apps
-                GroupBox("Apps to Launch (\(state.launches.count))") {
+                // Apps to Launch
+                GroupBox("Launch (\(state.launches.count))") {
                     if state.launches.isEmpty {
                         Text("No apps captured")
                             .foregroundStyle(.secondary)
-                            .padding(8)
+                            .padding(.vertical, 8)
                     } else {
                         FlowLayout(spacing: 8) {
                             ForEach(state.launches) { target in
                                 AppTag(name: target.appName, url: target.url)
                             }
                         }
-                        .padding(8)
+                        .padding(.vertical, 8)
                     }
                 }
 
                 // Apps to Close
                 if !state.closedBundleIdentifiers.isEmpty {
-                    GroupBox("Apps to Close (\(state.closedBundleIdentifiers.count))") {
+                    GroupBox("Close (\(state.closedBundleIdentifiers.count))") {
                         FlowLayout(spacing: 8) {
                             ForEach(state.closedBundleIdentifiers, id: \.self) { bundleId in
                                 Text(bundleId.components(separatedBy: ".").last ?? bundleId)
@@ -385,20 +390,22 @@ struct DetailView: View {
                                     .background(.red.opacity(0.15), in: Capsule())
                             }
                         }
-                        .padding(8)
+                        .padding(.vertical, 8)
                     }
                 }
 
-                // Windows
-                GroupBox("Window Positions (\(state.windows.count))") {
+                // Window Positions
+                GroupBox("Windows (\(state.windows.count))") {
                     if state.windows.isEmpty {
-                        Text("No window positions captured")
+                        Text("No windows captured")
                             .foregroundStyle(.secondary)
-                            .padding(8)
+                            .padding(.vertical, 8)
                     } else {
                         VStack(alignment: .leading, spacing: 6) {
-                            ForEach(state.windows.prefix(10)) { window in
-                                HStack {
+                            ForEach(state.windows.prefix(8)) { window in
+                                HStack(spacing: 8) {
+                                    Image(systemName: "macwindow")
+                                        .foregroundStyle(.tertiary)
                                     Text(window.appName)
                                         .font(.system(size: 12, weight: .medium))
                                     Text(window.title)
@@ -411,23 +418,24 @@ struct DetailView: View {
                                         .foregroundStyle(.tertiary)
                                 }
                             }
-                            if state.windows.count > 10 {
-                                Text("+ \(state.windows.count - 10) more")
+                            if state.windows.count > 8 {
+                                Text("+ \(state.windows.count - 8) more")
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
+                                    .padding(.top, 4)
                             }
                         }
-                        .padding(8)
+                        .padding(.vertical, 8)
                     }
                 }
 
                 // Monitor Auto-Restore
-                GroupBox("Monitor Plug-In") {
+                GroupBox("Auto-Restore") {
                     HStack {
                         VStack(alignment: .leading, spacing: 4) {
-                            Text("Auto-restore when monitor connected")
+                            Text("Restore on monitor connect")
                                 .font(.system(size: 13))
-                            Text("Arms this workspace to restore automatically when you plug in an external display")
+                            Text("Automatically restore when external display is plugged in")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                         }
@@ -437,35 +445,34 @@ struct DetailView: View {
                         }
                         .buttonStyle(.bordered)
                     }
-                    .padding(8)
+                    .padding(.vertical, 8)
                 }
 
-                // Danger Zone
-                GroupBox {
-                    HStack {
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text("Delete Workspace")
-                                .font(.system(size: 13))
-                            Text("This cannot be undone")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-                        Spacer()
-                        Button("Delete", role: .destructive) {
-                            store.delete(state)
-                        }
-                        .buttonStyle(.bordered)
+                // Delete
+                HStack {
+                    Spacer()
+                    Button("Delete Workspace", role: .destructive) {
+                        showingDeleteConfirm = true
                     }
-                    .padding(8)
-                } label: {
-                    Label("Danger Zone", systemImage: "exclamationmark.triangle")
-                        .foregroundStyle(.red)
+                    .buttonStyle(.bordered)
+                    .help("Remove this workspace permanently")
                 }
+                .padding(.top, 8)
             }
-            .padding(24)
+            .padding(20)
         }
         .onAppear { syncFromState() }
         .onChange(of: state) { _, _ in syncFromState() }
+        .alert("Delete Workspace?", isPresented: $showingDeleteConfirm) {
+            Button("Cancel", role: .cancel) {}
+            Button("Delete", role: .destructive) {
+                store.delete(state)
+                onDelete()
+                dismiss()
+            }
+        } message: {
+            Text("This cannot be undone.")
+        }
     }
 
     private func syncFromState() {

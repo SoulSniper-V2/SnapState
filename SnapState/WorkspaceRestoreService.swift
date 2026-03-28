@@ -71,6 +71,9 @@ struct WorkspaceRestoreService {
                 continue
             }
 
+            // Give the app a moment to fully launch and create its windows
+            usleep(300_000) // 300ms per app
+
             let appElement = AXUIElementCreateApplication(app.processIdentifier)
             var value: CFTypeRef?
             let result = AXUIElementCopyAttributeValue(appElement, kAXWindowsAttribute as CFString, &value)
@@ -82,8 +85,10 @@ struct WorkspaceRestoreService {
                 continue
             }
 
+            // Sort by order (z-order) - lower index = higher in stack
             let orderedSnapshots = snapshots.sorted { $0.order < $1.order }
 
+            // Restore positions for all windows
             for (index, snapshot) in orderedSnapshots.enumerated() where index < axWindows.count {
                 let frame = snapshot.frame.cgRect
                 var point = CGPoint(x: frame.origin.x, y: frame.origin.y)
@@ -98,6 +103,22 @@ struct WorkspaceRestoreService {
                     AXUIElementSetAttributeValue(axWindows[index], kAXSizeAttribute as CFString, size)
                 }
             }
+
+            // Bring windows to front in reverse z-order (topmost last so it ends up on top)
+            // This recreates the original stacking order
+            for snapshot in orderedSnapshots.reversed() {
+                if let index = orderedSnapshots.firstIndex(where: { $0.id == snapshot.id }),
+                   index < axWindows.count {
+                    AXUIElementSetAttributeValue(axWindows[index], "AXRaised" as CFString, axWindows[index])
+                    usleep(50_000) // 50ms between raising windows
+                }
+            }
+        }
+
+        // Final pass: activate the last app to ensure all windows are visible
+        if let lastBundleId = grouped.keys.first(where: { _ in true }),
+           let lastApp = NSRunningApplication.runningApplications(withBundleIdentifier: lastBundleId).first {
+            lastApp.activate(options: [.activateIgnoringOtherApps])
         }
     }
 }
