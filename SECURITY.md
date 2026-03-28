@@ -8,7 +8,7 @@ We take the security of SnapState seriously. If you discover a security vulnerab
 
 **Please DO NOT open a public issue.** Instead, report security vulnerabilities by emailing:
 
-📧 **security@getsnapstate.com** (or use GitHub's private vulnerability reporting if enabled)
+📧 **hello@getsnapstate.com**
 
 ### What to Include
 
