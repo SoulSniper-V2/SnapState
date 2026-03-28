@@ -88,6 +88,3 @@ Grant permission in: **System Settings → Privacy & Security → Accessibility*
 
 MIT License - See LICENSE file for details
 
-## Author
-
-Created by Arush Wadhawan
