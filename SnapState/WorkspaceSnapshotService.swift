@@ -35,25 +35,26 @@ struct WorkspaceSnapshotService {
         // Check if Finder is the frontmost app
         let frontmostApp = NSWorkspace.shared.frontmostApplication
         let isFinderFrontmost = frontmostApp?.bundleIdentifier == "com.apple.finder"
+        let windowSnapshots = captureWindows(for: runningApps, isFinderFrontmost: isFinderFrontmost)
+        let appBundleIdentifiersInCurrentDesktop = Set(windowSnapshots.map(\.bundleIdentifier))
 
         let launches = runningApps.compactMap { app -> LaunchTarget? in
             guard let bundleIdentifier = app.bundleIdentifier else { return nil }
-            
-            // Skip Finder unless it's the frontmost app
-            if bundleIdentifier == "com.apple.finder" && !isFinderFrontmost {
+
+            // Only capture apps that actually have visible windows in the current desktop.
+            // This keeps a workspace scoped to the active Space instead of every running app.
+            guard appBundleIdentifiersInCurrentDesktop.contains(bundleIdentifier) else {
                 return nil
             }
 
             return LaunchTarget(
                 bundleIdentifier: bundleIdentifier,
                 appName: app.localizedName ?? bundleIdentifier,
-                url: BrowserURLReader.bestEffortURL(for: bundleIdentifier),
+                urls: BrowserURLReader.bestEffortURLs(for: bundleIdentifier),
                 preferredDisplayID: nil
             )
         }
         .sorted { $0.appName.localizedCaseInsensitiveCompare($1.appName) == .orderedAscending }
-
-        let windowSnapshots = captureWindows(for: runningApps, isFinderFrontmost: isFinderFrontmost)
 
         guard launches.isEmpty == false || windowSnapshots.isEmpty == false else {
             throw WorkspaceSnapshotError.noLaunchTargets
@@ -122,28 +123,46 @@ struct WorkspaceSnapshotService {
 }
 
 enum BrowserURLReader {
-    static func bestEffortURL(for bundleIdentifier: String) -> String? {
+    static func bestEffortURLs(for bundleIdentifier: String) -> [String] {
         switch bundleIdentifier {
         case "com.apple.Safari":
-            return AppleScriptRunner.run(
+            return AppleScriptRunner.runLines(
                 """
                 tell application "Safari"
                     if (count of windows) is 0 then return ""
-                    return URL of current tab of front window
+                    set output to {}
+                    repeat with w in windows
+                        try
+                            set end of output to (URL of current tab of w)
+                        end try
+                    end repeat
+                    set AppleScript's text item delimiters to linefeed
+                    set joinedOutput to output as string
+                    set AppleScript's text item delimiters to ""
+                    return joinedOutput
                 end tell
                 """
             )
         case "com.google.Chrome":
-            return AppleScriptRunner.run(
+            return AppleScriptRunner.runLines(
                 """
                 tell application "Google Chrome"
                     if (count of windows) is 0 then return ""
-                    return URL of active tab of front window
+                    set output to {}
+                    repeat with w in windows
+                        try
+                            set end of output to (URL of active tab of w)
+                        end try
+                    end repeat
+                    set AppleScript's text item delimiters to linefeed
+                    set joinedOutput to output as string
+                    set AppleScript's text item delimiters to ""
+                    return joinedOutput
                 end tell
                 """
             )
         default:
-            return nil
+            return []
         }
     }
 }
@@ -157,6 +176,17 @@ enum AppleScriptRunner {
             return nil
         }
         return output?.isEmpty == false ? output : nil
+    }
+
+    static func runLines(_ source: String) -> [String] {
+        guard let output = run(source) else {
+            return []
+        }
+
+        return output
+            .components(separatedBy: .newlines)
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { $0.isEmpty == false }
     }
 }
 

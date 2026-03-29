@@ -14,113 +14,120 @@ struct MenuBarContentView: View {
     @State private var quickCaptureName = ""
     @State private var showingQuickCapture = false
 
+    private let panelWidth: CGFloat = 340
+
     var body: some View {
-        VStack(spacing: 0) {
-            // Header
-            HStack {
-                Text("SnapState")
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(.secondary)
-                Spacer()
-                Button {
-                    showingQuickCapture.toggle()
-                } label: {
-                    Image(systemName: "plus.circle.fill")
-                        .font(.system(size: 16))
-                        .foregroundStyle(.white.opacity(0.8))
-                }
-                .buttonStyle(.plain)
-            }
-            .padding(.horizontal, 16)
-            .padding(.top, 14)
-            .padding(.bottom, 10)
+        ZStack {
+            Color(nsColor: .windowBackgroundColor)
+                .ignoresSafeArea()
 
-            // Quick Capture
-            if showingQuickCapture {
-                HStack(spacing: 8) {
-                    TextField("Name this setup...", text: $quickCaptureName)
-                        .textFieldStyle(.plain)
-                        .padding(8)
-                        .background(.white.opacity(0.1), in: RoundedRectangle(cornerRadius: 8))
-
+            VStack(spacing: 0) {
+                // Header
+                HStack {
+                    Text("SnapState")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(.secondary)
+                    Spacer()
                     Button {
-                        if !quickCaptureName.isEmpty {
-                            store.captureState(name: quickCaptureName, icon: "rectangle.3.group", accentHex: "#5B8CFF", notes: "")
-                            quickCaptureName = ""
-                            showingQuickCapture = false
-                        }
+                        showingQuickCapture.toggle()
                     } label: {
-                        Image(systemName: "camera.fill")
-                            .font(.system(size: 12, weight: .semibold))
-                            .foregroundStyle(.white)
-                            .padding(8)
-                            .background(Color.accentColor, in: RoundedRectangle(cornerRadius: 8))
+                        Image(systemName: "plus.circle.fill")
+                            .font(.system(size: 16))
+                            .foregroundStyle(.white.opacity(0.8))
                     }
                     .buttonStyle(.plain)
-                    .disabled(quickCaptureName.isEmpty)
                 }
                 .padding(.horizontal, 16)
-                .padding(.bottom, 12)
-            }
+                .padding(.top, 14)
+                .padding(.bottom, 10)
 
-            Divider().opacity(0.3)
+                // Quick Capture
+                if showingQuickCapture {
+                    HStack(spacing: 8) {
+                        TextField("Name this setup...", text: $quickCaptureName)
+                            .textFieldStyle(.plain)
+                            .padding(8)
+                            .background(.white.opacity(0.1), in: RoundedRectangle(cornerRadius: 8))
 
-            // States Grid
-            if store.states.isEmpty {
-                VStack(spacing: 8) {
-                    Image(systemName: "rectangle.3.group")
-                        .font(.system(size: 28))
-                        .foregroundStyle(.secondary)
-                    Text("No workspaces yet")
-                        .font(.system(size: 12))
-                        .foregroundStyle(.secondary)
-                    Text("Click + to capture")
-                        .font(.system(size: 11))
-                        .foregroundStyle(.tertiary)
+                        Button {
+                            if !quickCaptureName.isEmpty {
+                                store.captureState(name: quickCaptureName, icon: "rectangle.3.group", accentHex: "#5B8CFF", notes: "")
+                                quickCaptureName = ""
+                                showingQuickCapture = false
+                            }
+                        } label: {
+                            Image(systemName: "camera.fill")
+                                .font(.system(size: 12, weight: .semibold))
+                                .foregroundStyle(.white)
+                                .padding(8)
+                                .background(Color.accentColor, in: RoundedRectangle(cornerRadius: 8))
+                        }
+                        .buttonStyle(.plain)
+                        .disabled(quickCaptureName.isEmpty)
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.bottom, 12)
                 }
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 32)
-            } else {
-                LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
-                    ForEach(store.states.prefix(6)) { state in
-                        StateCard(state: state) {
-                            store.restore(state, behavior: .full)
+
+                Divider().opacity(0.3)
+
+                // States Grid
+                if store.states.isEmpty {
+                    VStack(spacing: 8) {
+                        Image(systemName: "rectangle.3.group")
+                            .font(.system(size: 28))
+                            .foregroundStyle(.secondary)
+                        Text("No workspaces yet")
+                            .font(.system(size: 12))
+                            .foregroundStyle(.secondary)
+                        Text("Click + to capture")
+                            .font(.system(size: 11))
+                            .foregroundStyle(.tertiary)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 32)
+                } else {
+                    LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
+                        ForEach(store.states.prefix(6)) { state in
+                            StateCard(state: state) {
+                                store.restore(state, behavior: .full)
+                            }
                         }
                     }
+                    .padding(12)
                 }
-                .padding(12)
+
+                Divider().opacity(0.3)
+
+                // Footer
+                HStack(spacing: 16) {
+                    Button {
+                        openWindow(id: "main")
+                        NSApp.activate(ignoringOtherApps: true)
+                    } label: {
+                        Label("Settings", systemImage: "gear")
+                            .font(.system(size: 11))
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(.secondary)
+
+                    Spacer()
+
+                    Button {
+                        NSApplication.shared.terminate(nil)
+                    } label: {
+                        Label("Quit", systemImage: "xmark")
+                            .font(.system(size: 11))
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(.secondary)
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 10)
             }
-
-            Divider().opacity(0.3)
-
-            // Footer
-            HStack(spacing: 16) {
-                Button {
-                    openWindow(id: "main")
-                    NSApp.activate(ignoringOtherApps: true)
-                } label: {
-                    Label("Settings", systemImage: "gear")
-                        .font(.system(size: 11))
-                }
-                .buttonStyle(.plain)
-                .foregroundStyle(.secondary)
-
-                Spacer()
-
-                Button {
-                    NSApplication.shared.terminate(nil)
-                } label: {
-                    Label("Quit", systemImage: "xmark")
-                        .font(.system(size: 11))
-                }
-                .buttonStyle(.plain)
-                .foregroundStyle(.secondary)
-            }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 10)
         }
-        .frame(maxWidth: .infinity)
-        .background(Color(nsColor: .windowBackgroundColor))
+        .frame(width: panelWidth, alignment: .top)
+        .fixedSize(horizontal: false, vertical: true)
     }
 }
 
@@ -193,6 +200,54 @@ struct ContentView: View {
             // Sidebar
             VStack(spacing: 0) {
                 List(selection: $selectedState) {
+                    Section("Permissions") {
+                        PermissionStatusRow(
+                            title: "Accessibility",
+                            subtitle: "Needed to read and move windows",
+                            isGranted: store.permissionMonitor.accessibilityTrusted,
+                            statusLabel: store.permissionMonitor.accessibilityTrusted ? "Allowed" : "Needs Permission",
+                            actionTitle: store.permissionMonitor.accessibilityTrusted ? "Refresh" : "Enable"
+                        ) {
+                            if store.permissionMonitor.accessibilityTrusted {
+                                store.permissionMonitor.refresh()
+                            } else {
+                                store.permissionMonitor.requestAccessibilityPermission()
+                            }
+                        }
+
+                        PermissionStatusRow(
+                            title: "Safari Control",
+                            subtitle: "Needed to capture and reopen Safari URLs",
+                            state: store.permissionMonitor.safariAutomation,
+                            actionTitle: permissionActionTitle(for: store.permissionMonitor.safariAutomation)
+                        ) {
+                            if store.permissionMonitor.safariAutomation == .denied {
+                                store.permissionMonitor.openAutomationPrivacySettings()
+                            } else if store.permissionMonitor.safariAutomation == .granted {
+                                store.permissionMonitor.refresh()
+                            } else {
+                                store.permissionMonitor.requestAutomationPermission(for: "com.apple.Safari")
+                            }
+                        }
+
+                        if store.permissionMonitor.chromeAutomation != .unavailable {
+                            PermissionStatusRow(
+                                title: "Chrome Control",
+                                subtitle: "Needed to capture and reopen Chrome URLs",
+                                state: store.permissionMonitor.chromeAutomation,
+                                actionTitle: permissionActionTitle(for: store.permissionMonitor.chromeAutomation)
+                            ) {
+                                if store.permissionMonitor.chromeAutomation == .denied {
+                                    store.permissionMonitor.openAutomationPrivacySettings()
+                                } else if store.permissionMonitor.chromeAutomation == .granted {
+                                    store.permissionMonitor.refresh()
+                                } else {
+                                    store.permissionMonitor.requestAutomationPermission(for: "com.google.Chrome")
+                                }
+                            }
+                        }
+                    }
+
                     Section {
                         Toggle("Launch at Login", isOn: $launchAtLogin)
                             .toggleStyle(.switch)
@@ -234,7 +289,7 @@ struct ContentView: View {
                 }
                 .padding(12)
             }
-            .frame(minWidth: 200, maxWidth: 260)
+            .frame(minWidth: 230, maxWidth: 320)
 
             // Detail
             if let state = selectedState {
@@ -253,11 +308,27 @@ struct ContentView: View {
         .frame(minWidth: 600, minHeight: 400)
         .onAppear {
             launchAtLogin = store.launchAtLogin
+            store.permissionMonitor.refresh()
         }
         .onChange(of: store.states) { _, newStates in
-            if selectedState == nil, let first = newStates.first {
+            if let selectedState, newStates.contains(where: { $0.id == selectedState.id }) == false {
+                self.selectedState = newStates.first
+            } else if selectedState == nil, let first = newStates.first {
                 selectedState = first
             }
+        }
+    }
+
+    private func permissionActionTitle(for state: AutomationPermissionState) -> String {
+        switch state {
+        case .granted:
+            return "Refresh"
+        case .denied:
+            return "Open Settings"
+        case .appNotRunning, .notDetermined, .unknown:
+            return "Enable"
+        case .unavailable:
+            return "Unavailable"
         }
     }
 }
@@ -281,6 +352,87 @@ struct SidebarRow: View {
             }
         }
         .padding(.vertical, 4)
+    }
+}
+
+struct PermissionStatusRow: View {
+    let title: String
+    let subtitle: String
+    let isGranted: Bool
+    let statusLabel: String
+    let actionTitle: String
+    let action: () -> Void
+
+    init(
+        title: String,
+        subtitle: String,
+        isGranted: Bool,
+        statusLabel: String,
+        actionTitle: String,
+        action: @escaping () -> Void
+    ) {
+        self.title = title
+        self.subtitle = subtitle
+        self.isGranted = isGranted
+        self.statusLabel = statusLabel
+        self.actionTitle = actionTitle
+        self.action = action
+    }
+
+    init(
+        title: String,
+        subtitle: String,
+        state: AutomationPermissionState,
+        actionTitle: String,
+        action: @escaping () -> Void
+    ) {
+        self.init(
+            title: title,
+            subtitle: subtitle,
+            isGranted: state == .granted,
+            statusLabel: state.label,
+            actionTitle: actionTitle,
+            action: action
+        )
+    }
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 10) {
+            Image(systemName: isGranted ? "checkmark.circle.fill" : "exclamationmark.circle.fill")
+                .foregroundStyle(iconTint)
+                .font(.system(size: 14, weight: .semibold))
+                .padding(.top, 1)
+
+            VStack(alignment: .leading, spacing: 3) {
+                HStack(spacing: 6) {
+                    Text(title)
+                        .font(.system(size: 12, weight: .semibold))
+                        .lineLimit(1)
+                    Text(statusLabel)
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
+
+                Text(subtitle)
+                    .font(.system(size: 10))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(2)
+            }
+
+            Spacer(minLength: 8)
+
+            Button(actionTitle, action: action)
+                .buttonStyle(.plain)
+                .font(.system(size: 11, weight: .medium))
+                .foregroundStyle(actionTitle == "Unavailable" ? .tertiary : .secondary)
+                .disabled(actionTitle == "Unavailable")
+        }
+        .padding(.vertical, 5)
+    }
+
+    private var iconTint: Color {
+        isGranted ? .green : .orange
     }
 }
 
@@ -374,7 +526,7 @@ struct DetailView: View {
                     } else {
                         FlowLayout(spacing: 8) {
                             ForEach(state.launches) { target in
-                                AppTag(name: target.appName, url: target.url)
+                                AppTag(name: target.appName, urls: target.urls)
                             }
                         }
                         .padding(8)
@@ -504,13 +656,13 @@ struct DetailView: View {
 
 struct AppTag: View {
     let name: String
-    let url: String?
+    let urls: [String]
 
     var body: some View {
         HStack(spacing: 4) {
             Text(name)
                 .font(.system(size: 11, weight: .medium))
-            if url != nil {
+            if urls.isEmpty == false {
                 Image(systemName: "link")
                     .font(.system(size: 9))
                     .foregroundStyle(.secondary)

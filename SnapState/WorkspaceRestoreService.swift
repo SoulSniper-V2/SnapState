@@ -20,6 +20,12 @@ enum WorkspaceRestoreError: LocalizedError {
 }
 
 struct WorkspaceRestoreService {
+    private let appLaunchSettlingDelay: TimeInterval = 1.2
+    private let browserURLRestoreDelay: TimeInterval = 0.35
+    private let windowPollingTimeout: TimeInterval = 8.0
+    private let windowPollingInterval: useconds_t = 150_000
+    private let raiseWindowInterval: useconds_t = 50_000
+
     func restore(state: WorkspaceState, behavior: RestoreBehavior) throws {
         if behavior != .launchOnly, PermissionMonitor.isAccessibilityTrusted(prompt: true) == false {
             throw WorkspaceRestoreError.accessibilityRequired
@@ -31,7 +37,7 @@ struct WorkspaceRestoreService {
         }
 
         if behavior != .launchOnly {
-            DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {
+            DispatchQueue.global(qos: .userInitiated).asyncAfter(deadline: .now() + appLaunchSettlingDelay) {
                 restoreWindowFrames(state.windows)
             }
         }
@@ -40,12 +46,17 @@ struct WorkspaceRestoreService {
     private func restoreLaunchTargets(_ targets: [LaunchTarget]) {
         for target in targets {
             let configuration = NSWorkspace.OpenConfiguration()
+            let urls = target.urls.compactMap(URL.init(string:))
 
-            if let urlString = target.url, let url = URL(string: urlString) {
+            if urls.isEmpty == false {
+                if restoreBrowserURLs(urls, for: target.bundleIdentifier) {
+                    continue
+                }
+
                 if let applicationURL = NSWorkspace.shared.urlForApplication(withBundleIdentifier: target.bundleIdentifier) {
-                    NSWorkspace.shared.open([url], withApplicationAt: applicationURL, configuration: configuration)
+                    NSWorkspace.shared.open(urls, withApplicationAt: applicationURL, configuration: configuration)
                 } else {
-                    NSWorkspace.shared.open(url)
+                    urls.forEach { NSWorkspace.shared.open($0) }
                 }
                 continue
             }
@@ -63,6 +74,62 @@ struct WorkspaceRestoreService {
         }
     }
 
+    private func restoreBrowserURLs(_ urls: [URL], for bundleIdentifier: String) -> Bool {
+        let normalizedURLs = urls
+            .map(\.absoluteString)
+            .filter { $0.isEmpty == false }
+
+        guard normalizedURLs.isEmpty == false else {
+            return false
+        }
+
+        let configuration = NSWorkspace.OpenConfiguration()
+
+        switch bundleIdentifier {
+        case "com.apple.Safari", "com.google.Chrome":
+            if let applicationURL = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleIdentifier) {
+                NSWorkspace.shared.openApplication(at: applicationURL, configuration: configuration)
+            }
+
+            let script = browserRestoreScript(for: bundleIdentifier, urls: normalizedURLs)
+            DispatchQueue.global(qos: .userInitiated).asyncAfter(deadline: .now() + browserURLRestoreDelay) {
+                let succeeded = AppleScriptRunner.run(script) != nil
+                if succeeded == false, let applicationURL = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleIdentifier) {
+                    let fallbackURLs = normalizedURLs.compactMap(URL.init(string:))
+                    NSWorkspace.shared.open(fallbackURLs, withApplicationAt: applicationURL, configuration: configuration)
+                }
+            }
+            return true
+        default:
+            return false
+        }
+    }
+
+    private func browserRestoreScript(for bundleIdentifier: String, urls: [String]) -> String {
+        let quotedURLs = urls.map(Self.appleScriptStringLiteral).joined(separator: ", ")
+        let appIdentifier = Self.appleScriptStringLiteral(bundleIdentifier)
+
+        return """
+        set targetURLs to {\(quotedURLs)}
+        tell application id \(appIdentifier)
+            activate
+            repeat with targetURL in targetURLs
+                try
+                    open location (targetURL as text)
+                end try
+            end repeat
+        end tell
+        return "ok"
+        """
+    }
+
+    nonisolated private static func appleScriptStringLiteral(_ value: String) -> String {
+        let escaped = value
+            .replacingOccurrences(of: "\\", with: "\\\\")
+            .replacingOccurrences(of: "\"", with: "\\\"")
+        return "\"\(escaped)\""
+    }
+
     private func restoreWindowFrames(_ windows: [WindowSnapshot]) {
         let grouped = Dictionary(grouping: windows, by: \.bundleIdentifier)
 
@@ -71,17 +138,7 @@ struct WorkspaceRestoreService {
                 continue
             }
 
-            // Give the app a moment to fully launch and create its windows
-            usleep(300_000) // 300ms per app
-
-            let appElement = AXUIElementCreateApplication(app.processIdentifier)
-            var value: CFTypeRef?
-            let result = AXUIElementCopyAttributeValue(appElement, kAXWindowsAttribute as CFString, &value)
-
-            guard
-                result == .success,
-                let axWindows = value as? [AXUIElement]
-            else {
+            guard let axWindows = waitForWindows(of: app, timeout: windowPollingTimeout) else {
                 continue
             }
 
@@ -110,7 +167,7 @@ struct WorkspaceRestoreService {
                 if let index = orderedSnapshots.firstIndex(where: { $0.id == snapshot.id }),
                    index < axWindows.count {
                     AXUIElementSetAttributeValue(axWindows[index], "AXRaised" as CFString, axWindows[index])
-                    usleep(50_000) // 50ms between raising windows
+                    usleep(raiseWindowInterval)
                 }
             }
         }
@@ -118,7 +175,33 @@ struct WorkspaceRestoreService {
         // Final pass: activate the last app to ensure all windows are visible
         if let lastBundleId = grouped.keys.first(where: { _ in true }),
            let lastApp = NSRunningApplication.runningApplications(withBundleIdentifier: lastBundleId).first {
-            lastApp.activate(options: [.activateIgnoringOtherApps])
+            lastApp.activate()
         }
+    }
+
+    private func waitForWindows(of app: NSRunningApplication, timeout: TimeInterval) -> [AXUIElement]? {
+        let deadline = Date().addingTimeInterval(timeout)
+        let appElement = AXUIElementCreateApplication(app.processIdentifier)
+
+        repeat {
+            if let windows = copyWindows(from: appElement), windows.isEmpty == false {
+                return windows
+            }
+
+            usleep(windowPollingInterval)
+        } while Date() < deadline && app.isTerminated == false
+
+        return copyWindows(from: appElement)
+    }
+
+    private func copyWindows(from appElement: AXUIElement) -> [AXUIElement]? {
+        var value: CFTypeRef?
+        let result = AXUIElementCopyAttributeValue(appElement, kAXWindowsAttribute as CFString, &value)
+
+        guard result == .success else {
+            return nil
+        }
+
+        return value as? [AXUIElement]
     }
 }

@@ -56,21 +56,59 @@ struct LaunchTarget: Identifiable, Codable, Hashable {
     var id: UUID
     var bundleIdentifier: String
     var appName: String
-    var url: String?
+    var urls: [String]
     var preferredDisplayID: UInt32?
 
     init(
         id: UUID = UUID(),
         bundleIdentifier: String,
         appName: String,
-        url: String? = nil,
+        urls: [String] = [],
         preferredDisplayID: UInt32? = nil
     ) {
         self.id = id
         self.bundleIdentifier = bundleIdentifier
         self.appName = appName
-        self.url = url
+        self.urls = urls
         self.preferredDisplayID = preferredDisplayID
+    }
+
+    var primaryURL: String? {
+        urls.first
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case id
+        case bundleIdentifier
+        case appName
+        case urls
+        case url
+        case preferredDisplayID
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decodeIfPresent(UUID.self, forKey: .id) ?? UUID()
+        bundleIdentifier = try container.decode(String.self, forKey: .bundleIdentifier)
+        appName = try container.decode(String.self, forKey: .appName)
+        preferredDisplayID = try container.decodeIfPresent(UInt32.self, forKey: .preferredDisplayID)
+
+        if let decodedURLs = try container.decodeIfPresent([String].self, forKey: .urls) {
+            urls = decodedURLs
+        } else if let decodedURL = try container.decodeIfPresent(String.self, forKey: .url), decodedURL.isEmpty == false {
+            urls = [decodedURL]
+        } else {
+            urls = []
+        }
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(id, forKey: .id)
+        try container.encode(bundleIdentifier, forKey: .bundleIdentifier)
+        try container.encode(appName, forKey: .appName)
+        try container.encode(urls, forKey: .urls)
+        try container.encodeIfPresent(preferredDisplayID, forKey: .preferredDisplayID)
     }
 }
 
@@ -124,6 +162,7 @@ struct DisplaySignature: Codable, Hashable {
     var summary: String
     var displays: [DisplayDescriptor]
 
+    @MainActor
     static func current() -> DisplaySignature {
         let screens = NSScreen.screens.compactMap(DisplayDescriptor.init(screen:))
         let summary = screens
@@ -142,6 +181,7 @@ struct DisplayDescriptor: Identifiable, Codable, Hashable {
     var originY: Double
     var isPrimary: Bool
 
+    @MainActor
     init?(screen: NSScreen) {
         guard
             let screenID = screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber

@@ -2,7 +2,9 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-    <key>LSUIElement</key>
-    <true/>
+	<key>NSAppleEventsUsageDescription</key>
+	<string>SnapState needs permission to read and reopen browser tabs when saving and restoring workspaces.</string>
+	<key>LSUIElement</key>
+	<true/>
 </dict>
 </plist>

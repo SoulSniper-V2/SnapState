@@ -92,13 +92,14 @@ final class WorkspaceStore {
                 updated.createdAt = states[index].createdAt
                 states[index] = updated
                 selectedStateID = updated.id
-                statusMessage = "Updated \(updated.name)."
+                statusMessage = captureStatusMessage(for: updated, action: "Updated")
             } else {
                 states.insert(snapshot, at: 0)
                 selectedStateID = snapshot.id
-                statusMessage = "Saved \(snapshot.name)."
+                statusMessage = captureStatusMessage(for: snapshot, action: "Saved")
             }
 
+            permissionMonitor.refresh()
             save()
         } catch {
             captureError = error.localizedDescription
@@ -122,11 +123,6 @@ final class WorkspaceStore {
     }
 
     func delete(_ state: WorkspaceState) {
-        // Close apps that were launched by this workspace
-        for launch in state.launches {
-            NSRunningApplication.runningApplications(withBundleIdentifier: launch.bundleIdentifier).forEach { $0.terminate() }
-        }
-        
         states.removeAll { $0.id == state.id }
         if selectedStateID == state.id {
             selectedStateID = states.first?.id
@@ -184,6 +180,18 @@ final class WorkspaceStore {
         } catch {
             captureError = "Could not save workspace states."
         }
+    }
+
+    private func captureStatusMessage(for state: WorkspaceState, action: String) -> String {
+        let browserWithoutURLs = state.launches.first {
+            PermissionMonitor.supportsAutomation(bundleIdentifier: $0.bundleIdentifier) && $0.urls.isEmpty
+        }
+
+        if let browserWithoutURLs {
+            return "\(action) \(state.name), but \(browserWithoutURLs.appName) URLs need Automation permission."
+        }
+
+        return "\(action) \(state.name)."
     }
 }
 
