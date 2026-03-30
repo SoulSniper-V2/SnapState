@@ -1,0 +1,4 @@
+.build/
+.build-release/
+.dmg-staging/
+.dmg-tmp.dmg
