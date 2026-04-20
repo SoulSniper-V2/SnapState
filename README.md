@@ -11,7 +11,7 @@ A macOS menu bar application for saving and restoring workspace layouts. Capture
 - **Quick Capture** - Save your current workspace with a single click from the menu bar
 - **Window Position Restore** - Automatically restores app window positions using Accessibility APIs
 - **App Launch Management** - Specify which apps to launch and which to close for each workspace
-- **URL Preservation** - Saves browser URLs (Safari & Chrome) so you can resume exactly where you left off
+- **URL Preservation** - Saves browser URLs (Safari, Chrome, Edge, Brave, and Arc) so you can resume exactly where you left off
 - **Monitor Auto-Restore** - Automatically restores a workspace when you connect/disconnect external displays
 - **Menu Bar Only** - Runs entirely from the menu bar with no dock icon
 

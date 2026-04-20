@@ -125,10 +125,10 @@ struct WorkspaceSnapshotService {
 enum BrowserURLReader {
     static func bestEffortURLs(for bundleIdentifier: String) -> [String] {
         switch bundleIdentifier {
-        case "com.apple.Safari":
+        case "com.apple.Safari", "com.apple.SafariTechnologyPreview":
             return AppleScriptRunner.runLines(
                 """
-                tell application "Safari"
+                tell application id "\(bundleIdentifier)"
                     if (count of windows) is 0 then return ""
                     set output to {}
                     repeat with w in windows
@@ -143,14 +143,33 @@ enum BrowserURLReader {
                 end tell
                 """
             )
-        case "com.google.Chrome":
+        case "com.google.Chrome", "com.google.Chrome.canary", "com.microsoft.edgemac", "com.brave.Browser", "org.chromium.Chromium":
             return AppleScriptRunner.runLines(
                 """
-                tell application "Google Chrome"
+                tell application id "\(bundleIdentifier)"
                     if (count of windows) is 0 then return ""
                     set output to {}
                     repeat with w in windows
                         try
+                            set end of output to (URL of active tab of w)
+                        end try
+                    end repeat
+                    set AppleScript's text item delimiters to linefeed
+                    set joinedOutput to output as string
+                    set AppleScript's text item delimiters to ""
+                    return joinedOutput
+                end tell
+                """
+            )
+        case "company.thebrowser.Browser": // Arc
+            return AppleScriptRunner.runLines(
+                """
+                tell application id "company.thebrowser.Browser"
+                    if (count of windows) is 0 then return ""
+                    set output to {}
+                    repeat with w in windows
+                        try
+                            -- Arc windows have tabs that can be active
                             set end of output to (URL of active tab of w)
                         end try
                     end repeat

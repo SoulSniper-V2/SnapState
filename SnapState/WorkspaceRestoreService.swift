@@ -84,25 +84,34 @@ struct WorkspaceRestoreService {
         }
 
         let configuration = NSWorkspace.OpenConfiguration()
+        let supportedBrowsers = [
+            "com.apple.Safari",
+            "com.apple.SafariTechnologyPreview",
+            "com.google.Chrome",
+            "com.google.Chrome.canary",
+            "com.microsoft.edgemac",
+            "com.brave.Browser",
+            "org.chromium.Chromium",
+            "company.thebrowser.Browser" // Arc
+        ]
 
-        switch bundleIdentifier {
-        case "com.apple.Safari", "com.google.Chrome":
-            if let applicationURL = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleIdentifier) {
-                NSWorkspace.shared.openApplication(at: applicationURL, configuration: configuration)
-            }
-
-            let script = browserRestoreScript(for: bundleIdentifier, urls: normalizedURLs)
-            DispatchQueue.global(qos: .userInitiated).asyncAfter(deadline: .now() + browserURLRestoreDelay) {
-                let succeeded = AppleScriptRunner.run(script) != nil
-                if succeeded == false, let applicationURL = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleIdentifier) {
-                    let fallbackURLs = normalizedURLs.compactMap(URL.init(string:))
-                    NSWorkspace.shared.open(fallbackURLs, withApplicationAt: applicationURL, configuration: configuration)
-                }
-            }
-            return true
-        default:
+        guard supportedBrowsers.contains(bundleIdentifier) else {
             return false
         }
+
+        if let applicationURL = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleIdentifier) {
+            NSWorkspace.shared.openApplication(at: applicationURL, configuration: configuration)
+        }
+
+        let script = browserRestoreScript(for: bundleIdentifier, urls: normalizedURLs)
+        DispatchQueue.global(qos: .userInitiated).asyncAfter(deadline: .now() + browserURLRestoreDelay) {
+            let succeeded = AppleScriptRunner.run(script) != nil
+            if succeeded == false, let applicationURL = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleIdentifier) {
+                let fallbackURLs = normalizedURLs.compactMap(URL.init(string:))
+                NSWorkspace.shared.open(fallbackURLs, withApplicationAt: applicationURL, configuration: configuration)
+            }
+        }
+        return true
     }
 
     private func browserRestoreScript(for bundleIdentifier: String, urls: [String]) -> String {
